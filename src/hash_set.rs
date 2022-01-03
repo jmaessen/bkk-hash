@@ -27,6 +27,7 @@ pub struct HashSet {
     pub set_order: Vec<Key>,
     next_clean_size: usize,
     curr_x: usize,
+    prev_x2: usize,
 }
 
 pub fn bucket(k: Key) -> usize {
@@ -66,6 +67,7 @@ impl HashSet {
             set_order: Vec::with_capacity(N + 1),
             next_clean_size: N / 4,
             curr_x: 1,
+            prev_x2: N + 1,
         }
     }
 
@@ -89,7 +91,7 @@ impl HashSet {
                 }
                 Entry::Full(bk, k) => {
                     self.set[i] = Entry::Full(bn, n);
-                    self.register_remove(k, b);
+                    self.register_remove(bk, k, b);
                     self.register_insert(bn, n, b);
                     n = k;
                     bn = bk;
@@ -111,6 +113,12 @@ impl HashSet {
         let bn = bucket(n);
         let b = self.insert_loop(bn, n, b);
         if self.bkk && self.size == self.next_clean_size {
+            let prev_nx2 = N / self.prev_x2;
+            for ii in 1..prev_nx2 {
+                let i = ii * self.prev_x2;
+                let k = (i << RSHIFT) - 1;
+                self.remove_tombstone(k);
+            }
             self.curr_x = N / (N - self.size());
             let x4 = 4 * self.curr_x;
             let x2 = 2 * self.curr_x;
@@ -121,6 +129,7 @@ impl HashSet {
                 self.insert_tombstone(k);
             }
             self.next_clean_size += N / x4;
+            self.prev_x2 = x2;
         }
         self.register_insert_len(b - 1, bn);
     }
@@ -134,7 +143,12 @@ impl HashSet {
         loop {
             let i1 = (i + 1) & (N - 1);
             match self.set[i1] {
-                Entry::Full(bk, _) | Entry::Tombstone(bk, _) if bk != i1 => {
+                Entry::Full(bk, k) if bk != i1 => {
+                    self.register_remove(bk, k, i1);
+                    self.set[i] = self.set[i1];
+                    self.register_insert(bk, k, i);
+                }
+                Entry::Tombstone(bk, _) if bk != i1 => {
                     self.set[i] = self.set[i1];
                 }
                 _ => {
@@ -154,7 +168,7 @@ impl HashSet {
             Entry::Empty => {  }
             Entry::Full(_, k) if k == n => { }
             Entry::Full(bk, k) => {
-                self.register_remove(k, b);
+                self.register_remove(bk, k, b);
                 self.set[i] = Entry::Tombstone(bn, n);
                 self.insert_loop(bk, k, b + 1);
             }
@@ -164,8 +178,7 @@ impl HashSet {
         }
     }
 
-    fn register_remove(&mut self, k: Key, b: usize) {
-        let bk = bucket(k);
+    fn register_remove(&mut self, bk: usize, _: Key, b: usize) {
         let mut d = if bk > b { b + N - bk } else { b - bk };
         if d >= N {
             d -= N;

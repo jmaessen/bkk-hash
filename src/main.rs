@@ -1,6 +1,8 @@
 use bkk_hash::hash_set::{bucket, HashSet, Key, ProbeHist, N};
 use rand::random;
 
+const TRIALS: usize = 10000;
+
 fn dump_hists(desc: &str, hists: Vec<ProbeHist>) {
     for (i, h) in hists.into_iter().enumerate() {
         let x = N as f64 / (N - i) as f64;
@@ -39,7 +41,7 @@ fn agg_to_hists(hists: &mut Vec<ProbeHist>, new_hists: Vec<ProbeHist>) {
 fn do_one(bkk: bool) {
     let mut agg_probe_hists = vec![ProbeHist::default(); N];
     let mut agg_insert_hists = vec![ProbeHist::default(); N];
-    for trial in 0..1000 {
+    for trial in 0..TRIALS {
         let mut set = HashSet::new(bkk);
         while set.size() < N {
             let i: Key = random();
@@ -80,7 +82,7 @@ fn do_one(bkk: bool) {
             );
             assert_eq!(set.size(), set.insert_lens.len());
         }
-        if true {
+        if false {
             println!(
                 "{:3},\t{:.3}",
                 trial,
@@ -98,9 +100,10 @@ fn do_one(bkk: bool) {
             *agg_insert_hists[i].entry(l).or_insert(0) += 1;
         }
     }
-    println!("what, i, x,\tmean,\tstddev,\tmean/x,\tstddev/x");
-    dump_hists("pr", agg_probe_hists);
-    dump_hists("in", agg_insert_hists);
+    println!("test, op, i, x,\tmean,\tstddev,\tmean/x,\tstddev/x");
+    let bkk_str = if bkk { "bkk" } else { "std" };
+    dump_hists(&format!("{}, probe_len", bkk_str), agg_probe_hists);
+    dump_hists(&format!("{}, insert_len", bkk_str), agg_insert_hists);
 }
 
 fn main() {
